@@ -62,15 +62,17 @@ exports.createPages = ({ actions }) => {
     },
   });
 };
+
 // resolver is a graphQL term for a function that returns data for a given field
 exports.createResolvers = ({
-  action,
+  actions,
   cache,
   createNodeId,
   createResolvers,
   store,
   reporter,
 }) => {
+  const { createNode } = actions;
   // create a resolver object that loosely matches the schema
   const resolvers = {
     Book: {
@@ -81,6 +83,33 @@ exports.createResolvers = ({
       },
       cover: {
         type: 'File',
+        resolve: async (source) => {
+          const response = await fetch(
+            `https://openlibrary.org/isbn/${source.isbn}.json`,
+          );
+
+          if (!response.ok) {
+            reporter.warn(
+              `Error loading details about ${source.name} - got ${response.status} ${response.statusText}`,
+            );
+            return null;
+          }
+
+          const { covers } = await response.json();
+
+          if (covers.length) {
+            return createRemoteFileNode({
+              url: `https://covers.openlibrary.org/b/id/${covers[0]}-L.jpg`,
+              store,
+              cache,
+              createNode,
+              createNodeId,
+              reporter,
+            });
+          } else {
+            return null;
+          }
+        },
       },
     },
   };
